@@ -38,6 +38,7 @@
 
 - Node.js 18+ и npm
 - База данных PostgreSQL (локальная или удалённая)
+  - Рекомендуется использовать Docker Compose (файл `docker-compose.yml` в корне проекта)
 
 ### Установка
 
@@ -52,7 +53,13 @@
    npm install
    ```
 
-3. Настройте переменные окружения:
+3. Запустите PostgreSQL (если не запущен):
+   ```bash
+   docker-compose up -d
+   ```
+   Или установите PostgreSQL вручную и создайте базу данных `business_chat`.
+
+4. Настройте переменные окружения:
    Создайте файл `.env.local` в корне со следующим содержимым:
    ```env
    DATABASE_URL="postgresql://пользователь:пароль@localhost:5432/business_chat"
