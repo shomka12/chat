@@ -20,6 +20,7 @@ model User {
   birthDate   DateTime? // день рождения
   password    String // hashed
   role        Role         @default(USER)
+  isActive    Boolean      @default(true)
   avatar      String?
   deviceToken String? // для push-уведомлений (мобильное приложение)
   publicKey   String? // публичный ключ для шифрования
