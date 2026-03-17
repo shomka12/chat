@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Send, Paperclip, Smile, Image as ImageIcon, Forward, Megaphone, X, Reply } from "lucide-react";
+import { Send, Paperclip, Smile, Image as ImageIcon, Forward, Megaphone, X, Reply, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import EmojiPicker from "emoji-picker-react";
@@ -22,6 +22,8 @@ interface Message {
   deliveredAt?: string;
   readAt?: string;
   isEncrypted: boolean;
+  isEdited?: boolean;
+  updatedAt?: string;
   forwardedFrom?: {
     id: string;
     sender: { name: string };
@@ -229,6 +231,46 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+
+  const handleEdit = async (messageId: string) => {
+    if (!editContent.trim()) {
+      toast.error("Сообщение не может быть пустым");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent }),
+      });
+      if (res.ok) {
+        const updatedMessage = await res.json();
+        // Обновляем сообщение в основном массиве и в replies
+        const updateMessageInTree = (msgs: Message[]): Message[] =>
+          msgs.map((msg) => {
+            if (msg.id === messageId) {
+              return { ...msg, content: updatedMessage.content, isEdited: true, updatedAt: updatedMessage.updatedAt };
+            }
+            if (msg.replies && msg.replies.length > 0) {
+              return { ...msg, replies: updateMessageInTree(msg.replies) };
+            }
+            return msg;
+          });
+        setMessages((prev) => updateMessageInTree(prev));
+        setEditingMessageId(null);
+        setEditContent("");
+        toast.success("Сообщение отредактировано");
+      } else {
+        const error = await res.json();
+        toast.error(error.error || "Ошибка редактирования");
+      }
+    } catch (error) {
+      toast.error("Ошибка редактирования");
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Messages Area */}
@@ -255,7 +297,8 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
                     </div>
                     <span className="font-semibold">{msg.sender.name}</span>
                     <span className="text-xs opacity-70">
-                      {format(new Date(msg.createdAt), "HH:mm")}
+                      {format(new Date(msg.createdAt), "dd.MM.yyyy HH:mm")}
+                      {msg.isEdited && <span className="text-xs text-gray-500 ml-1">(изменено)</span>}
                     </span>
                     {msg.sender.id === "self" && (
                       <div className="flex items-center space-x-1">
@@ -275,7 +318,36 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
                       </div>
                     )}
                   </div>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {editingMessageId === msg.id ? (
+                    <div className="mt-2">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        rows={2}
+                        autoFocus
+                      />
+                      <div className="flex justify-end space-x-2 mt-2">
+                        <button
+                          onClick={() => {
+                            setEditingMessageId(null);
+                            setEditContent("");
+                          }}
+                          className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          onClick={() => handleEdit(msg.id)}
+                          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Сохранить
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  )}
                   {msg.isEncrypted && (
                     <span className="inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded mt-2">
                       🔒 Encrypted
@@ -312,6 +384,18 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
                       <Forward className="h-3 w-3 mr-1" />
                       Переслать
                     </button>
+                    {msg.sender.id === "self" && Date.now() - new Date(msg.createdAt).getTime() < 5000 && (
+                      <button
+                        onClick={() => {
+                          setEditingMessageId(msg.id);
+                          setEditContent(msg.content);
+                        }}
+                        className="text-xs flex items-center text-gray-500 hover:text-yellow-600"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Редактировать
+                      </button>
+                    )}
                   </div>
                   {msg.replies && msg.replies.length > 0 && (
                     <div className="mt-3 ml-6 pl-4 border-l-2 border-gray-300 space-y-2">
@@ -321,7 +405,7 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
                             <div className="w-4 h-4 rounded-full bg-gray-300"></div>
                             <span className="font-medium">{reply.sender.name}</span>
                             <span className="text-xs text-gray-500">
-                              {format(new Date(reply.createdAt), "HH:mm")}
+                              {format(new Date(reply.createdAt), "dd.MM.yyyy HH:mm")}
                             </span>
                           </div>
                           <p className="mt-1">{reply.content}</p>
