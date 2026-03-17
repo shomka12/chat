@@ -1,0 +1,180 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  name        String?
+  fullName    String? // ФИО
+  department  String? // отдел
+  position    String? // должность
+  birthDate   DateTime? // день рождения
+  password    String // hashed
+  role        Role         @default(USER)
+  avatar      String?
+  deviceToken String? // для push-уведомлений (мобильное приложение)
+  publicKey   String? // публичный ключ для шифрования
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  chats       ChatMember[]
+  messages    Message[]
+  adminChats  Chat[]       @relation("ChatAdmins")
+  reactions   Reaction[]
+  sessions    Session[]
+  accounts    Account[]
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Chat {
+  id            String       @id @default(cuid())
+  name          String
+  description   String?
+  type          ChatType     @default(GROUP)
+  parentId      String? // для иерархии
+  parent        Chat?        @relation("ChatHierarchy", fields: [parentId], references: [id])
+  children      Chat[]       @relation("ChatHierarchy")
+  adminId       String? // администратор чата (User)
+  admin         User?        @relation("ChatAdmins", fields: [adminId], references: [id])
+  members       ChatMember[]
+  messages      Message[]
+  encryptionKey String? // симметричный ключ, зашифрованный публичным ключом админа
+  isEncrypted   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  isArchived    Boolean      @default(false)
+}
+
+enum ChatType {
+  DIRECT
+  GROUP
+  CHANNEL
+  DEPARTMENT
+}
+
+model ChatMember {
+  id       String     @id @default(cuid())
+  userId   String
+  user     User       @relation(fields: [userId], references: [id])
+  chatId   String
+  chat     Chat       @relation(fields: [chatId], references: [id])
+  role     MemberRole @default(MEMBER)
+  joinedAt DateTime   @default(now())
+
+  @@unique([userId, chatId])
+}
+
+enum MemberRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+
+model Message {
+  id                String       @id @default(cuid())
+  content           String // текст сообщения (может содержать эмодзи)
+  encryptedContent  String? // зашифрованный текст, если isEncrypted = true
+  chatId            String
+  chat              Chat         @relation(fields: [chatId], references: [id])
+  senderId          String
+  sender            User         @relation(fields: [senderId], references: [id])
+  attachments       Attachment[]
+  reactions         Reaction[]
+  parentId          String? // ответ на сообщение
+  parent            Message?     @relation("MessageThread", fields: [parentId], references: [id])
+  replies           Message[]    @relation("MessageThread")
+  forwardedFromId   String? // ID оригинального сообщения, если это пересылка
+  forwardedFrom     Message?     @relation("MessageForward", fields: [forwardedFromId], references: [id])
+  forwardedMessages Message[]    @relation("MessageForward")
+  isEncrypted       Boolean      @default(false)
+  isBroadcast       Boolean      @default(false) // рассылка
+  deliveredAt       DateTime?    // время доставки
+  readAt            DateTime?    // время прочтения
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  isEdited          Boolean      @default(false)
+  isDeleted         Boolean      @default(false)
+}
+
+model Attachment {
+  id            String         @id @default(cuid())
+  messageId     String
+  message       Message        @relation(fields: [messageId], references: [id])
+  type          AttachmentType
+  url           String // путь или внешняя ссылка
+  name          String?
+  size          Int?
+  uploadedAt    DateTime       @default(now())
+  isEncrypted   Boolean        @default(false)
+  encryptionKey String? // ключ для расшифровки файла
+}
+
+enum AttachmentType {
+  IMAGE
+  DOCUMENT
+  VIDEO
+  AUDIO
+  OTHER
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  emoji     String // эмодзи Unicode или кастомный
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+}
+
+// NextAuth модели
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+  platform     String? // web, ios, android
+  userAgent    String?
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
