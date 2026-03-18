@@ -10,10 +10,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Получаем все сообщения с вложениями и авторами
+    // Получаем все сообщения с вложениями и отправителями
     const messages = await prisma.message.findMany({
       include: {
-        author: {
+        sender: {
           select: { id: true, email: true, name: true },
         },
         attachments: true,

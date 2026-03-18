@@ -70,23 +70,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const userId = session.user.id;
+    if (!userId) {
+      return NextResponse.json({ error: "User ID not found" }, { status: 400 });
+    }
+
     const chat = await prisma.chat.create({
       data: {
         name,
         description,
         type: type || "GROUP",
         parentId: parentId || null,
-        adminId: session.user.id,
+        adminId: userId,
         isEncrypted: isEncrypted || false,
         members: {
           create: {
-            userId: session.user.id,
+            userId,
             role: "ADMIN",
           },
         },
       },
       include: {
         members: true,
+        _count: {
+          select: { messages: true, members: true },
+        },
       },
     });
 

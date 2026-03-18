@@ -22,10 +22,10 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      toast.error("Invalid credentials");
+      toast.error("Неверные учетные данные");
       setLoading(false);
     } else {
-      toast.success("Logged in successfully");
+      toast.success("Вход выполнен успешно");
       router.push("/");
     }
   };
@@ -34,16 +34,16 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
         <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">
-          Business Chat
+          Бизнес-чат
         </h1>
         <p className="text-gray-600 text-center mb-8">
-          Secure messaging for your organization
+          Безопасный обмен сообщениями для вашей организации
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
+              Электронная почта
             </label>
             <input
               type="email"
@@ -57,7 +57,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
+              Пароль
             </label>
             <input
               type="password"
@@ -74,17 +74,17 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? "Вход..." : "Войти"}
           </button>
         </form>
 
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>
-            Demo credentials: admin@example.com / admin123
+            Демо доступ: admin@example.com / admin123
           </p>
           <p className="mt-4">
             <a href="/register" className="text-blue-600 hover:underline">
-              Need an account? Register
+              Нужен аккаунт? Зарегистрироваться
             </a>
           </p>
         </div>

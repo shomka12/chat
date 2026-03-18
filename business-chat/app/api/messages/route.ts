@@ -3,6 +3,18 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+function mapToAttachmentType(type: string): string {
+  const upper = type.toUpperCase();
+  if (["IMAGE", "DOCUMENT", "VIDEO", "AUDIO", "OTHER"].includes(upper)) {
+    return upper;
+  }
+  if (type.startsWith("image/")) return "IMAGE";
+  if (type.startsWith("video/")) return "VIDEO";
+  if (type.startsWith("audio/")) return "AUDIO";
+  if (type.includes("pdf") || type.startsWith("text/") || type.includes("document")) return "DOCUMENT";
+  return "OTHER";
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -85,6 +97,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const senderId = session.user.id;
+    if (!senderId) {
+      return NextResponse.json({ error: "User ID not found" }, { status: 400 });
+    }
+
     const body = await request.json();
     const { chatId, content, encryptedContent, parentId, attachments } = body;
 
@@ -98,14 +115,14 @@ export async function POST(request: NextRequest) {
     const message = await prisma.message.create({
       data: {
         chatId,
-        senderId: session.user.id,
+        senderId,
         content: content || "",
         encryptedContent: encryptedContent || null,
         isEncrypted: !!encryptedContent,
         parentId: parentId || null,
         attachments: {
           create: attachments?.map((att: any) => ({
-            type: att.type,
+            type: mapToAttachmentType(att.type),
             url: att.url,
             name: att.name,
             size: att.size,

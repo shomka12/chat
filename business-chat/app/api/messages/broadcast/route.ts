@@ -10,6 +10,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const senderId = session.user.id;
+    if (!senderId) {
+      return NextResponse.json({ error: "User ID not found" }, { status: 400 });
+    }
+
     // Только администраторы могут делать рассылку
     if (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -34,10 +39,10 @@ export async function POST(request: NextRequest) {
         // Находим или создаём личный чат между администратором и пользователем
         const existingChat = await prisma.chat.findFirst({
           where: {
-            type: "private",
-            participants: {
+            type: "DIRECT",
+            members: {
               every: {
-                userId: { in: [session.user.id, userId] },
+                userId: { in: [senderId, userId] },
               },
             },
           },
@@ -48,14 +53,14 @@ export async function POST(request: NextRequest) {
           // Создаём новый личный чат
           const newChat = await prisma.chat.create({
             data: {
-              type: "private",
-              name: null,
+              type: "DIRECT",
+              name: "Private Chat",
               description: null,
-              createdById: session.user.id,
-              participants: {
+              adminId: senderId,
+              members: {
                 create: [
-                  { userId: session.user.id, role: "admin" },
-                  { userId, role: "member" },
+                  { userId: senderId, role: "ADMIN" },
+                  { userId, role: "MEMBER" },
                 ],
               },
             },
@@ -81,7 +86,7 @@ export async function POST(request: NextRequest) {
       const message = await prisma.message.create({
         data: {
           chatId,
-          senderId: session.user.id,
+          senderId,
           content: content || "",
           encryptedContent: encryptedContent || null,
           isEncrypted: !!encryptedContent,

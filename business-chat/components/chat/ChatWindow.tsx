@@ -115,7 +115,7 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
       const data = await res.json();
       setMessages(data.messages || []);
     } catch (error) {
-      toast.error("Failed to load messages");
+      toast.error("Не удалось загрузить сообщения");
     } finally {
       setLoading(false);
     }
@@ -145,9 +145,9 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
     const data = await res.json();
     return {
       url: data.url,
-      name: data.name,
-      size: data.size,
-      type: data.type,
+      name: data.fileName,
+      size: data.fileSize,
+      type: data.attachmentType || "OTHER",
     };
   };
 
@@ -215,7 +215,7 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
         setReplyingTo(null);
       }
     } catch (error) {
-      toast.error("Failed to send message");
+      toast.error("Не удалось отправить сообщение");
     }
   };
 
@@ -233,6 +233,35 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+
+  const handleReaction = async (messageId: string, emoji: string) => {
+    // Временная заглушка: обновляем локальное состояние
+    setMessages(prev =>
+      prev.map(msg => {
+        if (msg.id === messageId) {
+          // Проверяем, есть ли уже такая реакция от текущего пользователя
+          const existing = msg.reactions.find((r: any) => r.emoji === emoji && r.userId === "self");
+          if (existing) {
+            // Удаляем реакцию
+            return {
+              ...msg,
+              reactions: msg.reactions.filter((r: any) => !(r.emoji === emoji && r.userId === "self"))
+            };
+          } else {
+            // Добавляем реакцию
+            return {
+              ...msg,
+              reactions: [...msg.reactions, { emoji, userId: "self", user: { name: "You" } }]
+            };
+          }
+        }
+        return msg;
+      })
+    );
+    // TODO: отправить запрос на сервер
+    // await fetch(`/api/messages/${messageId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) });
+  };
 
   const handleEdit = async (messageId: string) => {
     if (!editContent.trim()) {
@@ -276,10 +305,10 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
         {loading ? (
-          <div className="text-center py-8">Loading messages...</div>
+          <div className="text-center py-8">Загрузка сообщений...</div>
         ) : messages.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            No messages yet. Start the conversation!
+            Сообщений пока нет. Начните общение!
           </div>
         ) : (
           <div className="space-y-4">
@@ -350,7 +379,7 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
                   )}
                   {msg.isEncrypted && (
                     <span className="inline-block text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded mt-2">
-                      🔒 Encrypted
+                      🔒 Зашифровано
                     </span>
                   )}
                   {msg.attachments.length > 0 && (
@@ -369,33 +398,83 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
                       ))}
                     </div>
                   )}
-                  <div className="mt-2 flex justify-end space-x-3">
-                    <button
-                      onClick={() => setReplyingTo(msg)}
-                      className="text-xs flex items-center text-gray-500 hover:text-green-600"
-                    >
-                      <Reply className="h-3 w-3 mr-1" />
-                      Ответить
-                    </button>
-                    <button
-                      onClick={() => setForwardModal({ open: true, messageId: msg.id })}
-                      className="text-xs flex items-center text-gray-500 hover:text-blue-600"
-                    >
-                      <Forward className="h-3 w-3 mr-1" />
-                      Переслать
-                    </button>
-                    {msg.sender.id === "self" && Date.now() - new Date(msg.createdAt).getTime() < 5000 && (
+                  {/* Reactions */}
+                  {msg.reactions && msg.reactions.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {Object.entries(
+                        msg.reactions.reduce((acc: Record<string, number>, reaction: any) => {
+                          acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+                          return acc;
+                        }, {})
+                      ).map(([emoji, count]) => (
+                        <button
+                          key={emoji}
+                          className="text-xs bg-gray-100 hover:bg-gray-200 rounded-full px-2 py-1 flex items-center"
+                          onClick={() => handleReaction(msg.id, emoji)}
+                          title={`${count} reactions`}
+                        >
+                          <span>{emoji}</span>
+                          <span className="ml-1 text-gray-600">{count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-between items-center">
+                    <div className="flex space-x-1">
                       <button
-                        onClick={() => {
-                          setEditingMessageId(msg.id);
-                          setEditContent(msg.content);
-                        }}
-                        className="text-xs flex items-center text-gray-500 hover:text-yellow-600"
+                        onClick={() => handleReaction(msg.id, '👍')}
+                        className="text-xs p-1 rounded-full hover:bg-gray-100"
+                        title="Добавить реакцию"
                       >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Редактировать
+                        👍
                       </button>
-                    )}
+                      <button
+                        onClick={() => handleReaction(msg.id, '❤️')}
+                        className="text-xs p-1 rounded-full hover:bg-gray-100"
+                      >
+                        ❤️
+                      </button>
+                      <button
+                        onClick={() => handleReaction(msg.id, '😂')}
+                        className="text-xs p-1 rounded-full hover:bg-gray-100"
+                      >
+                        😂
+                      </button>
+                      <button
+                        onClick={() => setReactionPickerFor(msg.id)}
+                        className="text-xs p-1 rounded-full hover:bg-gray-100"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => setReplyingTo(msg)}
+                        className="text-xs flex items-center text-gray-500 hover:text-green-600"
+                      >
+                        <Reply className="h-3 w-3 mr-1" />
+                        Ответить
+                      </button>
+                      <button
+                        onClick={() => setForwardModal({ open: true, messageId: msg.id })}
+                        className="text-xs flex items-center text-gray-500 hover:text-blue-600"
+                      >
+                        <Forward className="h-3 w-3 mr-1" />
+                        Переслать
+                      </button>
+                      {msg.sender.id === "self" && Date.now() - new Date(msg.createdAt).getTime() < 5000 && (
+                        <button
+                          onClick={() => {
+                            setEditingMessageId(msg.id);
+                            setEditContent(msg.content);
+                          }}
+                          className="text-xs flex items-center text-gray-500 hover:text-yellow-600"
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Редактировать
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {msg.replies && msg.replies.length > 0 && (
                     <div className="mt-3 ml-6 pl-4 border-l-2 border-gray-300 space-y-2">
@@ -509,7 +588,7 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder={replyingTo ? "Напишите ответ..." : "Type your message..."}
+            placeholder={replyingTo ? "Напишите ответ..." : "Введите сообщение..."}
             className="flex-1 border border-gray-300 rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
@@ -521,8 +600,8 @@ export default function ChatWindow({ chatId }: ChatWindowProps) {
           </button>
         </div>
         <div className="text-xs text-gray-500 mt-2 flex justify-between">
-          <span>Press Enter to send • Use @ to mention</span>
-          <span>🔒 End-to-end encryption available</span>
+          <span>Enter для отправки • @ для упоминания</span>
+          <span>🔒 Доступно сквозное шифрование</span>
         </div>
       </div>
 

@@ -5,6 +5,14 @@ import { v4 as uuidv4 } from "uuid";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+function mapMimeToAttachmentType(mime: string): string {
+  if (mime.startsWith("image/")) return "IMAGE";
+  if (mime.startsWith("video/")) return "VIDEO";
+  if (mime.startsWith("audio/")) return "AUDIO";
+  if (mime === "application/pdf" || mime.startsWith("text/") || mime.includes("document")) return "DOCUMENT";
+  return "OTHER";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -34,11 +42,14 @@ export async function POST(request: NextRequest) {
     // Формируем публичный URL
     const publicUrl = `/uploads/${fileName}`;
 
+    const attachmentType = mapMimeToAttachmentType(file.type);
+
     return NextResponse.json({
       success: true,
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
+      attachmentType,
       url: publicUrl,
     });
   } catch (error) {
